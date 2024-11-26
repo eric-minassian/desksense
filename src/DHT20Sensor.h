@@ -2,6 +2,7 @@
 #define DHT20_SENSOR_H
 
 #include <Adafruit_AHTX0.h>
+#include <Arduino.h>
 
 #include "BaseSensor.h"
 
@@ -42,6 +43,22 @@ class DHT20Sensor : public BaseSensor {
     Serial.print("Humidity: ");
     Serial.print(currentHumidity);
     Serial.println(" RH %");
+  }
+
+  void displayMeasurements(int& yPos) override {
+    if (!isInitialized) return;
+
+    char buffer[40];
+    auto& display = DisplayManager::getInstance();
+
+    snprintf(buffer, sizeof(buffer), "Temp: %.1fC/%.1fF", currentTemp,
+             currentTempF);
+    display.drawText(buffer, 5, yPos);
+    yPos += 30;
+
+    snprintf(buffer, sizeof(buffer), "Humidity: %.1f%%", currentHumidity);
+    display.drawText(buffer, 5, yPos);
+    yPos += 30;
   }
 
   // Getters

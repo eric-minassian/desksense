@@ -10,10 +10,7 @@ class MAX9814Sensor : public BaseSensor {
   MAX9814Sensor(uint8_t outputPin) : analogPin(outputPin) {}
 
   bool begin() override {
-// Configure ADC resolution if using a board that supports it
-#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
-    analogReadResolution(12);  // Set to 12-bit resolution if supported
-#endif
+    pinMode(analogPin, INPUT);
 
     isInitialized = true;
     return true;
@@ -46,6 +43,17 @@ class MAX9814Sensor : public BaseSensor {
     Serial.print("Sound Level: ");
     Serial.print(currentDb);
     Serial.println(" dB");
+  }
+
+  void displayMeasurements(int& yPos) override {
+    if (!isInitialized) return;
+
+    char buffer[40];
+    auto& display = DisplayManager::getInstance();
+
+    snprintf(buffer, sizeof(buffer), "Sound: %.1f dB", currentDb);
+    display.drawText(buffer, 5, yPos);
+    yPos += 30;
   }
 
   // Getter

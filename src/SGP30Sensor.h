@@ -34,6 +34,21 @@ class SGP30Sensor : public BaseSensor {
     printRawMeasurements();
   }
 
+  void displayMeasurements(int& yPos) override {
+    if (!isInitialized) return;
+
+    char buffer[40];
+    auto& display = DisplayManager::getInstance();
+
+    snprintf(buffer, sizeof(buffer), "TVOC: %d ppb", sgp.TVOC);
+    display.drawText(buffer, 5, yPos);
+    yPos += 30;
+
+    snprintf(buffer, sizeof(buffer), "eCO2: %d ppm", sgp.eCO2);
+    display.drawText(buffer, 5, yPos);
+    yPos += 30;
+  }
+
   // Getters for sensor values
   uint16_t getTVOC() const { return sgp.TVOC; }
   uint16_t geteCO2() const { return sgp.eCO2; }

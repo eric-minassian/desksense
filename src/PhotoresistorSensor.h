@@ -10,11 +10,6 @@ class PhotoresistorSensor : public BaseSensor {
   PhotoresistorSensor(uint8_t sensorPin) : analogPin(sensorPin) {}
 
   bool begin() override {
-// Set ADC resolution if supported
-#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
-    analogReadResolution(12);  // Set to 12-bit resolution
-#endif
-
     // Initialize sensor
     pinMode(analogPin, INPUT);
 
@@ -41,8 +36,8 @@ class PhotoresistorSensor : public BaseSensor {
     // Calculate average
     currentRawValue = sum / SAMPLE_COUNT;
 
-    // Calculate percentage (inverted since more light = lower resistance)
-    currentLightPercent = map(currentRawValue, maxAnalogValue(), 0, 0, 100);
+    // Map raw value to percentage (0 - 50) = (0% - 100%)
+    currentLightPercent = map(currentRawValue, minReading, maxReading, 0, 100);
 
     // Update min/max values
     if (currentRawValue < minReading || minReading == -1)
@@ -60,6 +55,17 @@ class PhotoresistorSensor : public BaseSensor {
     Serial.print("% (Raw: ");
     Serial.print(currentRawValue);
     Serial.println(")");
+  }
+
+  void displayMeasurements(int& yPos) override {
+    if (!isInitialized) return;
+
+    char buffer[40];
+    auto& display = DisplayManager::getInstance();
+
+    snprintf(buffer, sizeof(buffer), "Light: %d%%", (int)currentLightPercent);
+    display.drawText(buffer, 5, yPos);
+    yPos += 30;
   }
 
   // Getters
@@ -101,21 +107,12 @@ class PhotoresistorSensor : public BaseSensor {
   int currentRawValue = 0;
   float currentLightPercent = 0.0f;
 
-  int minReading = -1;
-  int maxReading = 0;
+  int minReading = 0;
+  int maxReading = 50;
 
   // Thresholds for light level categories (can be adjusted)
   int darkThreshold = 100;    // Readings below this are considered dark
   int brightThreshold = 900;  // Readings above this are considered bright
-
-  // Helper function to get maximum analog value based on board's ADC resolution
-  int maxAnalogValue() {
-#if defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_ESP32)
-    return 4095;  // 12-bit ADC
-#else
-    return 1023;  // 10-bit ADC
-#endif
-  }
 
   float map(float x, float in_min, float in_max, float out_min, float out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
