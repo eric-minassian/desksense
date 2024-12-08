@@ -19,6 +19,26 @@ PhotoresistorSensor lightSensor(37);
 
 const char* url = "https://desksense.vercel.app/api/sensor";
 
+const int GREEN_LED = 15;
+const int YELLOW_LED = 13;
+const int RED_LED = 12;
+
+const float TEMP_YELLOW = 25.0;   // °C
+const float TEMP_RED = 30.0;      // °C
+const float HUMID_YELLOW = 60.0;  // %
+const float HUMID_RED = 70.0;     // %
+const float LIGHT_YELLOW = 70.0;  // %
+const float LIGHT_RED = 85.0;     // %
+const float NOISE_YELLOW = 60.0;  // dB
+const float NOISE_RED = 70.0;     // dB
+const int ECO2_YELLOW = 1000;     // ppm
+const int ECO2_RED = 2000;        // ppm
+const int TVOC_YELLOW = 220;      // ppb
+const int TVOC_RED = 660;         // ppb
+
+enum AlertLevel { NORMAL = 0, WARNING = 1, ALERT = 2 };
+AlertLevel currentAlertLevel = NORMAL;
+
 char ssid[50];
 char password[50];
 char authHeader[60];
@@ -132,6 +152,48 @@ void sendSensorData() {
   http.end();
 }
 
+void updateLEDsAndDisplay(const char* sensor, float value, float yellowThresh,
+                          float redThresh, int& yPos) {
+  auto& display = DisplayManager::getInstance();
+  char warningMsg[50];
+  AlertLevel sensorLevel = NORMAL;
+
+  if (value >= redThresh) {
+    sensorLevel = ALERT;
+    snprintf(warningMsg, sizeof(warningMsg), "%s ALERT!", sensor);
+    display.drawText(warningMsg, 5, yPos, 2);
+    yPos += 20;
+  } else if (value >= yellowThresh) {
+    sensorLevel = WARNING;
+    snprintf(warningMsg, sizeof(warningMsg), "%s Warning", sensor);
+    display.drawText(warningMsg, 5, yPos, 1);
+    yPos += 10;
+  }
+
+  // Update the global alert level if this sensor's level is higher
+  if (sensorLevel > currentAlertLevel) {
+    currentAlertLevel = sensorLevel;
+  }
+}
+
+void updateLEDs() {
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(YELLOW_LED, LOW);
+  digitalWrite(RED_LED, LOW);
+
+  switch (currentAlertLevel) {
+    case ALERT:
+      digitalWrite(RED_LED, HIGH);
+      break;
+    case WARNING:
+      digitalWrite(YELLOW_LED, HIGH);
+      break;
+    case NORMAL:
+      digitalWrite(GREEN_LED, HIGH);
+      break;
+  }
+}
+
 void setup() {
   Serial.begin(9600);
   while (!Serial) {
@@ -184,6 +246,11 @@ void setup() {
   Serial.println("Found Photoresistor sensor");
   lightSensor.setThresholds(10, 40);
 
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(YELLOW_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  digitalWrite(GREEN_LED, HIGH);  // Start with green LED on
+
   setupWiFi();
 }
 
@@ -191,27 +258,45 @@ void loop() {
   auto& display = DisplayManager::getInstance();
   display.clearScreen();
 
+  // Reset the alert level at the start of each loop
+  currentAlertLevel = NORMAL;
+
   int yPos = 5;
 
   if (tempSensor.measure()) {
+    float temp = tempSensor.getTemperatureCelsius();
+    float humidity = tempSensor.getHumidity();
+
+    updateLEDsAndDisplay("TEMP", temp, TEMP_YELLOW, TEMP_RED, yPos);
+    updateLEDsAndDisplay("HUMIDITY", humidity, HUMID_YELLOW, HUMID_RED, yPos);
     tempSensor.printMeasurements();
     tempSensor.displayMeasurements(yPos);
   }
 
   if (airSensor.measure()) {
+    updateLEDsAndDisplay("ECO2", airSensor.geteCO2(), ECO2_YELLOW, ECO2_RED,
+                         yPos);
+    updateLEDsAndDisplay("TVOC", airSensor.getTVOC(), TVOC_YELLOW, TVOC_RED,
+                         yPos);
     airSensor.printMeasurements();
     airSensor.displayMeasurements(yPos);
   }
 
   if (micSensor.measure()) {
+    updateLEDsAndDisplay("NOISE", micSensor.getDecibels(), NOISE_YELLOW,
+                         NOISE_RED, yPos);
     micSensor.printMeasurements();
     micSensor.displayMeasurements(yPos);
   }
 
   if (lightSensor.measure()) {
+    updateLEDsAndDisplay("LIGHT", lightSensor.getLightPercentage(),
+                         LIGHT_YELLOW, LIGHT_RED, yPos);
     lightSensor.printMeasurements();
     lightSensor.displayMeasurements(yPos);
   }
+
+  updateLEDs();
 
   display.pushToDisplay();
   delay(1000);
